@@ -1,6 +1,6 @@
 {
-    "akey": "29a4d8",
-    "token": "12344444444444444444",
+    "akey": "111111",
+    "token": "1111111111111111111",
     "cartype": "KONA_EV",
     "dongle": {
 	    "type": "PiOBD2Hat",

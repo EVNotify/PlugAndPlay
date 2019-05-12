@@ -13,7 +13,6 @@ import sys
 import signal
 
 LOOP_DELAY = 15
-EVN_SETTINGS_DELAY = 300
 ABORT_NOTIFICATION_DELAY = 60
 
 # load config
@@ -74,14 +73,10 @@ socThreshold = int(config['socThreshold']) if 'socThreshold' in config else 0
 notificationSent = False
 abortNotificationSent = False
 last_charging = time()
-last_evn_settings_poll = time()
 print("Notification threshold: {}".format(socThreshold))
-# Set up signal handling
 def exit_gracefully(signum, frame):
     sys.exit(0)
-
 signal.signal(signal.SIGTERM, exit_gracefully)
-	
 try:
     while main_running:
         now = time()
@@ -92,17 +87,14 @@ try:
             print(e)
         except DONGLE.NO_DATA as e:
             print(e)
-        except CAR.EMPTY_BLOCK as e:
-            print(e)
         except:
             raise
 
         else:
             print(data)
             try:
-                if 'SOC_DISPLAY' in data and 'SOC_BMS' in data:
-                    EVNotify.setSOC(data['SOC_DISPLAY'], data['SOC_BMS'])
-                    currentSOC = data['SOC_DISPLAY'] or data['SOC_BMS']
+                EVNotify.setSOC(data['SOC_DISPLAY'], data['SOC_BMS'])
+                currentSOC = data['SOC_DISPLAY'] or data['SOC_BMS']
 
                 if 'EXTENDED' in data:
                     EVNotify.setExtended(data['EXTENDED'])
@@ -116,13 +108,11 @@ try:
                     if is_charging:
                         last_charging = now
 
-                    if is_charging and 'socThreshold' not in config and \
-	                        now - last_evn_settings_poll > EVN_SETTINGS_DELAY:
+                    if is_charging and 'socThreshold' not in config:
                         try:
                             s = EVNotify.getSettings()
                             # following only happens if getSettings is successful, else jumps into exception handler
                             settings = s
-                            last_evn_settings_poll = now
 
                             if s['soc'] != socThreshold:
                                 socThreshold = int(s['soc'])
@@ -140,7 +130,7 @@ try:
                         print("Notification threshold reached")
                         EVNotify.sendNotification()
                         notificationSent = True
-                    elif not is_connected:   # Rearm notification
+                    elif not is_charging and chargingStarted:   # Rearm notification
                         chargingStartSOC = 0
                         notificationSent = False
 
