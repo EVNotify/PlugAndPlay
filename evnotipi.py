@@ -130,7 +130,7 @@ try:
                         print("Notification threshold reached")
                         EVNotify.sendNotification()
                         notificationSent = True
-                    elif not is_charging and chargingStarted:   # Rearm notification
+                    elif not is_connected:   # Rearm notification
                         chargingStartSOC = 0
                         notificationSent = False
 
