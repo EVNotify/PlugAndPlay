@@ -14,7 +14,7 @@ import signal
 
 LOOP_DELAY = 15
 ABORT_NOTIFICATION_DELAY = 60
-POLL_THRESHOLD_VOLT = 12.5
+POLL_THRESHOLD_VOLT = 13.0
 
 class SKIP_POLL(Exception): pass
 
@@ -124,7 +124,7 @@ try:
                             settings = s
 
                             if s['soc'] != socThreshold:
-                                socThreshold = int(s['soc'])
+                                socThreshold = int(s['soc']) if s['soc'] else 100
                                 print("New notification threshold: {}".format(socThreshold))
 
                         except EVNotify.CommunicationError:
@@ -139,7 +139,7 @@ try:
                         print("Notification threshold reached")
                         EVNotify.sendNotification()
                         notificationSent = True
-                    elif not is_charging and chargingStarted:   # Rearm notification
+                    elif not is_connected:   # Rearm notification
                         chargingStartSOC = 0
                         notificationSent = False
 
@@ -157,6 +157,8 @@ try:
 
         except DONGLE.CAN_ERROR as e:
             print(e)
+            print("Stopping programm")
+            main_running = False
         except DONGLE.NO_DATA as e:
             print(e)
             volt = dongle.getObdVoltage()

@@ -1,56 +1,54 @@
-class KONA_EV:
+from car import *
+
+b220101 = bytes.fromhex(hex(0x220101)[2:])
+b220105 = bytes.fromhex(hex(0x220105)[2:])
+
+class KONA_EV(Car):
 
     def __init__(self, dongle):
         self.dongle = dongle
         self.dongle.setProtocol('CAN_11_500')
         self.dongle.setCANRxFilter('7EC')
         self.dongle.setCANRxMask('7FF')
+        self.dongle.setCanID(0x7e4)
 
     def getData(self):
         raw = {}
 
-        for cmd in [220101,220105]:
-            raw[cmd] = self.dongle.sendCommand(str(cmd))
+        for cmd in [b220101,b220105]:
+            raw[cmd] = self.dongle.sendCommand(cmd)
 
-        chargingBits = raw[220101][0x7EC27][5] \
-                if 0x7EC27 in raw[220101] else None
+        # print("Raw lens {} {}".format(len(raw[b220101][0x7ec]),len(raw[b220105][0x7ec])))
+        #if len(raw[b220101][0x7ec]) != 9 or \  # XXX: Need to put in correct line count for Kona
+        #        len(raw[b220105][0x7ec]) != 7:
+        #    raise KONA_EV.NULL_BLOCK("Got wrong count of frames!\n"+str(raw))
 
-        normalChargePort = raw[220101][0x7EC21][6] == 3 \
-                if 0x7EC21 in raw[220101] else None
+        data = self.getBaseData()
+
+        data['SOC_BMS'] = raw[b220101][0x7ec][1][1] / 2.0
+        data['SOC_DISPLAY'] = raw[b220105][0x7ec][5][0] / 2.0
+
+        chargingBits = raw[b220101][0x7ec][7][5]
+        normalChargePort = raw[b220101][0x7ec][1][6] == 3
         normalChargeBit = chargingBits & 0x02 == 0x02
+        dcBatteryCurrent = int.from_bytes(raw[b220101][0x7ec][2][0:2], byteorder='big', signed=True) / 10.0
+        dcBatteryVoltage = int.from_bytes(raw[b220101][0x7ec][2][2:4], byteorder='big', signed=False) / 10.0
 
-        dcBatteryCurrent = int.from_bytes(raw[220101][0x7EC22][0:2], byteorder='big', signed=True) / 10.0 \
-                if 0x7EC22 in raw[220101] else None
-
-        dcBatteryVoltage = int.from_bytes(raw[220101][0x7EC22][2:4], byteorder='big', signed=False) / 10.0 \
-                if 0x7EC22 in raw[220101] else None
-
-        data = {'SOC_BMS':      raw[220101][0x7EC21][1] / 2.0 \
-                    if 0x7EC21 in raw[220101] else None,
-                'SOC_DISPLAY':  raw[220105][0x7EC25][0] / 2.0 \
-                    if 0x7EC25 in raw[220105] else None,
-                'EXTENDED': {
-                    'auxBatteryVoltage':        raw[220101][0x7EC24][5] / 10.0 \
-                        if 0x7EC24 in raw[220101] else None,
-                    'batteryInletTemperature':  int.from_bytes(raw[220101][0x7EC23][5:6], byteorder='big', signed=True) \
-                        if 0x7EC23 in raw[220101] else None,
-                    'batteryMaxTemperature':    int.from_bytes(raw[220101][0x7EC22][4:5], byteorder='big', signed=True) \
-                        if 0x7EC22 in raw[220101] else None,
-                    'batteryMinTemperature':    int.from_bytes(raw[220101][0x7EC22][5:6], byteorder='big', signed=True) \
-                        if 0x7EC22 in raw[220101] else None,
-                    'charging':                 1 if chargingBits & 0xc == 0x8 else 0,
-                    'normalChargePort':         1 if normalChargeBit and normalChargePort else 0,
-                    'rapidChargePort':          1 if normalChargeBit and not normalChargePort else 0,
-                    'dcBatteryCurrent':         dcBatteryCurrent,
-                    'dcBatteryPower':           dcBatteryCurrent * dcBatteryVoltage / 1000.0 \
-                        if dcBatteryCurrent!= None and dcBatteryVoltage != None else None,
-                    'dcBatteryVoltage':         dcBatteryVoltage,
-                    'soh':                      int.from_bytes(raw[220105][0x7EC24][1:3], byteorder='big', signed=False) / 10.0 \
-                        if 0x7EC24 in raw[220105] else None,
-                    }
+        data['EXTENDED'] = {
+                'auxBatteryVoltage':        raw[b220101][0x7ec][4][5] / 10.0,
+                'batteryInletTemperature':  int.from_bytes(raw[b220101][0x7ec][3][5:6], byteorder='big', signed=True),
+                'batteryMaxTemperature':    int.from_bytes(raw[b220101][0x7ec][2][4:5], byteorder='big', signed=True),
+                'batteryMinTemperature':    int.from_bytes(raw[b220101][0x7ec][2][5:6], byteorder='big', signed=True),
+                'cumulativeEnergyCharged':  int.from_bytes(raw[b220101][0x7ec][6][0:4], byteorder='big', signed=False) / 10.0,
+                'cumulativeEnergyDischarged': int.from_bytes(raw[b220101][0x7ec][6][4:7] + raw[b220101][0x7ec][7][0:1], byteorder='big', signed=False) / 10.0,
+                'charging':                 1 if (chargingBits & 0xc) == 0x8 else 0,
+                'normalChargePort':         1 if normalChargeBit and normalChargePort else 0,
+                'rapidChargePort':          1 if normalChargeBit and not normalChargePort else 0,
+                'dcBatteryCurrent':         dcBatteryCurrent,
+                'dcBatteryPower':           dcBatteryCurrent * dcBatteryVoltage / 1000.0,
+                'dcBatteryVoltage':         dcBatteryVoltage,
+                'soh':                      int.from_bytes(raw[b220105][0x7ec][4][1:3], byteorder='big', signed=False) / 10.0,
                 }
-
-        data.update(self.getBaseData())
 
         return data
 
