@@ -107,7 +107,7 @@ class PiOBD2Hat:
         return data
 
     def initDongle(self):
-        cmds = [['ATRST','DIAMEX PI-OBD'],  # Cold start
+        cmds = [['ATRST','PI-OBD'],         # Cold start
                 ['ATE0','OK'],              # Disable echo
                 ['ATL1','OK'],              # Use \r\n
                 ['ATOHS0','OK'],            # Disable space between HEX bytes
