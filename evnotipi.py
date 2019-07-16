@@ -95,6 +95,7 @@ try:
                 if dongle.getObdVoltage() < POLL_THRESHOLD_VOLT:
                     raise SKIP_POLL
                 else:
+                    print("Car on detected. Resume polling.")
                     car_off_skip_poll = False
 
             data = car.getData()
@@ -163,7 +164,7 @@ try:
             print(e)
             volt = dongle.getObdVoltage()
             if volt and volt < POLL_THRESHOLD_VOLT:
-                print("Car off detected. Stop polling until car on")
+                print("Car off detected. Stop polling until car on.")
                 car_off_skip_poll = True
         except SKIP_POLL:
             pass
