@@ -9,7 +9,7 @@ import time
 from subprocess import call
 GPIO.setmode(GPIO.BCM)
 
-GPIO.setup(24, GPIO.IN)
+GPIO.setup(24, GPIO.IN, pull_up_down = GPIO.PUD_DOWN)
 while True: 
     if (GPIO.input(24) == True): 
         from subprocess import call
