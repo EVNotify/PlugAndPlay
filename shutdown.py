@@ -11,10 +11,15 @@ GPIO.setmode(GPIO.BCM)
 
 GPIO.setup(24, GPIO.IN, pull_up_down = GPIO.PUD_DOWN)
 while True: 
-    if (GPIO.input(24) == True): 
-        from subprocess import call
-        call("sudo shutdown -h now", shell=True)
-    time.sleep(1);
+    if (GPIO.input(24) == True):
+        count = count + 1
+        time.sleep(.1)
+        if (count > 3):
+            from subprocess import call
+            call("sudo shutdown -h now", shell=True)
+    else:
+        count = 0
+    time.sleep(.5);
 
 
 
