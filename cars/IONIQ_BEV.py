@@ -50,6 +50,12 @@ class IONIQ_BEV:
                     'rapidChargePort':          1 if chargingBits != None and \
                             chargingBits & 0x40 == 0x40 else 0,
 
+                    'cumulativeEnergyCharged':  int.from_bytes(raw[2101][0x7EC25][6:7] + raw[2101][0x7EC26][0:3], byteorder='big', signed=False) / 10.0 \
+                        if 0x7EC25 in raw[2101] and 0x7EC26 in raw[2101] else None,
+                    
+                    'cumulativeEnergyDischarged': int.from_bytes(raw[2101][0x7EC26][3:7], byteorder='big', signed=False) / 10.0 \
+                        if 0x7EC26 in raw[2101] else None,
+
                     'dcBatteryCurrent':         dcBatteryCurrent,
 
                     'dcBatteryPower':           dcBatteryCurrent * dcBatteryVoltage / 1000.0 \
