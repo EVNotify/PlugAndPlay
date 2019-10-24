@@ -38,10 +38,10 @@ class KONA_EV:
                         if 0x7EC22 in raw[220101] else None,
                     'batteryMinTemperature':    int.from_bytes(raw[220101][0x7EC22][5:6], byteorder='big', signed=True) \
                         if 0x7EC22 in raw[220101] else None,
-                    'cumulativeEnergyCharged':  int.from_bytes(raw[2101][0x7EC26][0:4], byteorder='big', signed=False) / 10.0 \
-                        if 0x7EC26 in raw[2101] else None,
-                    'cumulativeEnergyDischarged': int.from_bytes(raw[2101][0x7EC26][4:7] + raw[2101][0x7EC27][0:1], byteorder='big', signed=False) / 10.0 \
-                        if 0x7EC26 in raw[2101] and 0x7EC27 in raw[2101] else None,
+                    'cumulativeEnergyCharged':  int.from_bytes(raw[220101][0x7EC26][0:4], byteorder='big', signed=False) / 10.0 \
+                        if 0x7EC26 in raw[220101] else None,
+                    'cumulativeEnergyDischarged': int.from_bytes(raw[220101][0x7EC26][4:7] + raw[220101][0x7EC27][0:1], byteorder='big', signed=False) / 10.0 \
+                        if 0x7EC26 in raw[220101] and 0x7EC27 in raw[220101] else None,
                     'charging':                 1 if chargingBits & 0xc == 0x8 else 0,
                     'normalChargePort':         1 if normalChargeBit and normalChargePort else 0,
                     'rapidChargePort':          1 if normalChargeBit and not normalChargePort else 0,
