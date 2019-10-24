@@ -1,69 +1,70 @@
-class IONIQ_BEV:
+from car import *
+from time import time
+
+POLL_DELAY_2180 = 60    # Rate limit b2180 to once a minute
+b2101 = bytes.fromhex(hex(0x2101)[2:])
+b2105 = bytes.fromhex(hex(0x2105)[2:])
+b2180 = bytes.fromhex(hex(0x2180)[2:])
+
+class IONIQ_BEV(car):
 
     def __init__(self, dongle):
         self.dongle = dongle
         self.dongle.setProtocol('CAN_11_500')
-        self.dongle.setCANRxFilter('7EC')
-        self.dongle.setCANRxMask('7FF')
+        self.dongle.setCANRxFilter(0x7ec)
+        self.dongle.setCANRxMask(0x7ff)
+        self.last_raw = {}
+        self.last_poll_2180 = 0
 
     def getData(self):
+        now = time()
         raw = {}
 
-        for cmd in [2101,2105]:
-            raw[cmd] = self.dongle.sendCommand(str(cmd))
+        self.dongle.setCANRxFilter(0x7ec)
+        self.dongle.setCanID(0x7e4)
+        for cmd in [b2101,b2105]:
+            raw[cmd] = self.dongle.sendCommand(cmd)
 
-        chargingBits = raw[2101][0x7EC21][5] \
-                if 0x7EC21 in raw[2101] else None
-        dcBatteryCurrent = int.from_bytes(raw[2101][0x7EC21][6:7] + raw[2101][0x7EC22][0:1],
-                byteorder='big', signed=True) / 10.0 \
-                if 0x7EC21 in raw[2101] and 0x7EC22 in raw[2101] else None
-        dcBatteryVoltage = int.from_bytes(raw[2101][0x7EC22][1:3],
-                byteorder='big', signed=False) / 10.0 \
-                if 0x7EC22 in raw[2101] else None
+        if now - self.last_poll_2180 > POLL_DELAY_2180 or b2180 not in self.last_raw:
+            self.last_poll_2180 = now
+            self.dongle.setCANRxFilter(0x7ee)
+            self.dongle.setCanID(0x7e6)
+            raw[b2180] = self.dongle.sendCommand(b2180)
+        else:
+            raw[b2180] = self.last_raw[b2180]
 
-        data = {'SOC_BMS':      raw[2101][0x7EC21][0] / 2.0 \
-                    if 0x7EC21 in raw[2101] else None,
-                'SOC_DISPLAY':  raw[2105][0x7EC24][6] / 2.0 \
-                    if 0x7EC24 in raw[2105] else None,
-                'EXTENDED': {
-                    'auxBatteryVoltage':        raw[2101][0x7EC24][4] / 10.0 \
-                        if 0x7EC24 in raw[2105] else None,
+        if len(raw[b2101][0x7ec]) != 9 or \
+                len(raw[b2105][0x7ec]) != 7 or \
+                len(raw[b2180][0x7ee]) != 4:
+            raise IONIQ_BEV.NULL_BLOCK("Got wrong count of frames!\n"+str(raw))
 
-                    'batteryInletTemperature':  int.from_bytes(raw[2101][0x7EC23][2:3],
-                        byteorder='big', signed=True) \
-                        if 0x7EC23 in raw[2105] else None,
+        self.last_raw[b2180] = raw[b2180]
 
-                    'batteryMaxTemperature':    int.from_bytes(raw[2101][0x7EC22][3:4],
-                        byteorder='big', signed=True) \
-                        if 0x7EC22 in raw[2105] else None,
+        data = self.getBaseData()
 
-                    'batteryMinTemperature':    int.from_bytes(raw[2101][0x7EC22][4:5],
-                        byteorder='big', signed=True) \
-                        if 0x7EC22 in raw[2105] else None,
+        data['SOC_BMS']     = raw[b2101][0x7ec][1][0] / 2.0
+        data['SOC_DISPLAY'] = raw[b2105][0x7ec][4][6] / 2.0
 
-                    'charging':                 1 if chargingBits != None and \
-                            chargingBits & 0x80 == 0x80 else 0,
+        chargingBits = raw[b2101][0x7ec][1][5]
+        dcBatteryCurrent = int.from_bytes(raw[b2101][0x7ec][1][6:7] + raw[b2101][0x7ec][2][0:1], byteorder='big', signed=True) / 10.0
+        dcBatteryVoltage = int.from_bytes(raw[b2101][0x7ec][2][1:3], byteorder='big', signed=False) / 10.0
 
-                    'normalChargePort':         1 if chargingBits != None and \
-                            chargingBits & 0x20 == 0x20 else 0,
-
-                    'rapidChargePort':          1 if chargingBits != None and \
-                            chargingBits & 0x40 == 0x40 else 0,
-
-                    'dcBatteryCurrent':         dcBatteryCurrent,
-
-                    'dcBatteryPower':           dcBatteryCurrent * dcBatteryVoltage / 1000.0 \
-                        if dcBatteryCurrent!= None and dcBatteryVoltage != None else None,
-
-                    'dcBatteryVoltage':         dcBatteryVoltage,
-
-                    'soh':                      int.from_bytes(raw[2105][0x7EC24][0:2],
-                        byteorder='big', signed=False) / 10.0 \
-                        if 0x7EC24 in raw[2105] else None,
-                    }
+        data['EXTENDED'] = {
+                'auxBatteryVoltage':        raw[b2101][0x7ec][4][4] / 10.0,
+                'batteryInletTemperature':  int.from_bytes(raw[b2101][0x7ec][3][2:3], byteorder='big', signed=True),
+                'batteryMaxTemperature':    int.from_bytes(raw[b2101][0x7ec][2][3:4], byteorder='big', signed=True),
+                'batteryMinTemperature':    int.from_bytes(raw[b2101][0x7ec][2][4:5], byteorder='big', signed=True),
+                'cumulativeEnergyCharged':  int.from_bytes(raw[b2101][0x7ec][5][6:7] + raw[b2101][0x7ec][6][0:3], byteorder='big', signed=False) / 10.0,
+                'cumulativeEnergyDischarged': int.from_bytes(raw[b2101][0x7ec][6][3:7], byteorder='big', signed=False) / 10.0,
+                'charging':                 1 if chargingBits & 0x80 else 0,
+                'normalChargePort':         1 if chargingBits & 0x20 else 0,
+                'rapidChargePort':          1 if chargingBits & 0x40 else 0,
+                'dcBatteryCurrent':         dcBatteryCurrent,
+                'dcBatteryPower':           dcBatteryCurrent * dcBatteryVoltage / 1000.0,
+                'dcBatteryVoltage':         dcBatteryVoltage,
+                'outsideTemp':              (raw[b2180][0x7ee][2][1] - 80) / 2,
+                'soh':                      int.from_bytes(raw[b2105][0x7ec][4][0:2], byteorder='big', signed=False) / 10.0,
                 }
-
-        data.update(self.getBaseData())
 
         return data
 

@@ -14,6 +14,9 @@ import signal
 
 LOOP_DELAY = 15
 ABORT_NOTIFICATION_DELAY = 60
+POLL_THRESHOLD_VOLT = 13.0
+
+class SKIP_POLL(Exception): pass
 
 # load config
 with open('config.json', encoding='utf-8') as config_file:
@@ -74,25 +77,31 @@ notificationSent = False
 abortNotificationSent = False
 last_charging = time()
 print("Notification threshold: {}".format(socThreshold))
+
+# Set up signal handling
 def exit_gracefully(signum, frame):
     sys.exit(0)
+
 signal.signal(signal.SIGTERM, exit_gracefully)
+
+car_off_skip_poll = False
+
+print("Starting main loop")
 try:
     while main_running:
         now = time()
         try:
+            if car_off_skip_poll:       # Skip polling until car on voltage is detected again
+                if dongle.getObdVoltage() < POLL_THRESHOLD_VOLT:
+                    raise SKIP_POLL
+                else:
+                    print("Car on detected. Resume polling.")
+                    car_off_skip_poll = False
+
             data = car.getData()
             fix = gps.fix()
-        except DONGLE.CAN_ERROR as e:
-            print(e)
-            main_running = False
-        except DONGLE.NO_DATA as e:
-            print(e)
-        except:
-            raise
 
-        else:
-            print(data)
+            #print(data)
             try:
                 EVNotify.setSOC(data['SOC_DISPLAY'], data['SOC_BMS'])
                 currentSOC = data['SOC_DISPLAY'] or data['SOC_BMS']
@@ -146,8 +155,21 @@ try:
 
             except EVNotify.CommunicationError as e:
                 print(e)
-            except:
-                raise
+
+        except DONGLE.CAN_ERROR as e:
+            print(e)
+            print("Stopping programm")
+            main_running = False
+        except DONGLE.NO_DATA as e:
+            print(e)
+            volt = dongle.getObdVoltage()
+            if volt and volt < POLL_THRESHOLD_VOLT:
+                print("Car off detected. Stop polling until car on.")
+                car_off_skip_poll = True
+        except SKIP_POLL:
+            pass
+        except CAR.NULL_BLOCK as e:
+            print(e)
 
         finally:
             try:
@@ -162,12 +184,13 @@ try:
 
             sys.stdout.flush()
 
-            if main_running: sleep(LOOP_DELAY)
+            if main_running:
+                loop_delay = LOOP_DELAY - (time()-now)
+                if loop_delay > 0: sleep(loop_delay)
 
 except (KeyboardInterrupt, SystemExit): #when you press ctrl+c
     main_running = False
-except:
-    raise
+
 finally:
     print("Exiting ...")
     gps.stop()
