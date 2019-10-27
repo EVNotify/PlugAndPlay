@@ -12,6 +12,9 @@ class KONA_EV:
         for cmd in [220101,220105]:
             raw[cmd] = self.dongle.sendCommand(str(cmd))
 
+        self.dongle.setCANRxFilter('7CE')
+        raw['22b002'] = self.dongle.sendCommand(str('22b002'))
+
         chargingBits = raw[220101][0x7EC27][5] \
                 if 0x7EC27 in raw[220101] else None
 
@@ -45,6 +48,8 @@ class KONA_EV:
                     'dcBatteryPower':           dcBatteryCurrent * dcBatteryVoltage / 1000.0 \
                         if dcBatteryCurrent!= None and dcBatteryVoltage != None else None,
                     'dcBatteryVoltage':         dcBatteryVoltage,
+                    'odo':                      float(int.from_bytes(raw['22b002'][0x7CE21][5:7] + raw['22b002'][0x7CE22][0:2], byteorder='big', signed=False)) \
+                        if 0x7CE21 in raw['22b002'] and 0x7CE22 in raw['22b002'] else None,
                     'soh':                      int.from_bytes(raw[220105][0x7EC24][1:3], byteorder='big', signed=False) / 10.0 \
                         if 0x7EC24 in raw[220105] else None,
                     }
