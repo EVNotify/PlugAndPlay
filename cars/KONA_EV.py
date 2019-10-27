@@ -49,7 +49,7 @@ class KONA_EV:
                         if dcBatteryCurrent!= None and dcBatteryVoltage != None else None,
                     'dcBatteryVoltage':         dcBatteryVoltage,
                     'odo':                      float(int.from_bytes(raw['22b002'][0x7CE21][5:7] + raw['22b002'][0x7CE22][0:2], byteorder='big', signed=False)) \
-                        if 0x7CE21 in raw['22b002'] and 0x7EC22 in raw['22b002'] else None,
+                        if 0x7CE21 in raw['22b002'] and 0x7CE22 in raw['22b002'] else None,
                     'soh':                      int.from_bytes(raw[220105][0x7EC24][1:3], byteorder='big', signed=False) / 10.0 \
                         if 0x7EC24 in raw[220105] else None,
                     }
